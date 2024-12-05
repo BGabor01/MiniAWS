@@ -17,6 +17,7 @@ func main(){
 
 	fmt.Println("Hello world!")
 	r := gin.Default()
-	r.POST("/auth/register", controllers.CreateUser)
+	r.POST("/api/auth/register", controllers.CreateUser)
+	r.POST("/api/auth/login", controllers.GetUser)
 	r.Run()
 }
