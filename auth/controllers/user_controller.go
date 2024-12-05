@@ -3,6 +3,7 @@ package controllers
 import (
 	"auth/models"
 	"auth/pkg/initializers"
+	"auth/pkg/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,9 +11,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type CreateUserRequest struct {
-	Name     string `json:"name" binding:"required,min=2"`  
+type UserRequest struct {
 	Password string `json:"password" binding:"required,min=6"` 
+	Name     string `json:"name" binding:"required,min=2"`  
+}
+
+type CreateUserRequest struct {
+	UserRequest
 	Email    string `json:"email" binding:"required,email"`
 }
 
@@ -84,5 +89,49 @@ func CreateUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": user,
+	})
+}
+
+func GetUser(c *gin.Context){
+
+	var requestData UserRequest
+
+	if err := c.ShouldBindJSON(&requestData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid input data",
+			"details": []string{err.Error()},
+		})
+		return
+	}
+
+	var user models.User
+	result := initializers.DB.Where("name = ?", requestData.Name).First(&user)
+	if result.Error != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Invalid credentials",
+			"details": []string{"User not found"},
+		})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(requestData.Password))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "Invalid credentials",
+			"details": []string{"Incorrect password"},
+		})
+		return
+	}
+
+	jwt, err := utils.GenerateJWT(user.Email, user.Name, user.ID)
+	if err != nil{
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Can't generate JWT",
+			"details": err.Error(),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": jwt,
 	})
 }
